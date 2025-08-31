@@ -36,11 +36,17 @@ class Customer():
         cursor.executemany(query,customer)
         connection.commit()
 
-    def getCustomerData():
+    def getCustomerIds():
         query='SELECT * FROM customer'
         cursor.execute(query)
         result=cursor.fetchall()
         result=[x[0] for x in result]
+        return result
+
+    def getCustomerData():
+        query='SELECT * FROM customer'
+        cursor.execute(query)
+        result=cursor.fetchall()
         return result
 
 class Product():
@@ -65,11 +71,17 @@ class Product():
         cursor.executemany(query, product)
         connection.commit()
 
-    def getProductData():
+    def getProductIds():
         query='SELECT * FROM product'
         cursor.execute(query)
         result=cursor.fetchall()
         result=[x[0] for x in result]
+        return result
+
+    def getProductData():
+        query='SELECT * FROM product'
+        cursor.execute(query)
+        result=cursor.fetchall()
         return result
 
 class Orders():
@@ -83,7 +95,7 @@ class Orders():
     def addOrderData():
         orders = []
         for i in range(50):
-            customer_id = random.choice(Customer.getCustomerData())
+            customer_id = random.choice(Customer.getCustomerIds())
             order_amount = random.uniform(25, 10000)
             order_date = faker.date_between(start_date='-1y', end_date='today')
             orders.append((customer_id, order_amount, order_date))
@@ -91,23 +103,55 @@ class Orders():
         cursor.executemany(query, orders)
         connection.commit()
 
-    def getOrderData():
+    def getOrderIds():
         query = 'SELECT * FROM order_details'
         cursor.execute(query)
         result = cursor.fetchall()
         result = [x[0] for x in result]
         return result
+    
+    def getOrderData():
+        query = 'SELECT * FROM order_details'
+        cursor.execute(query)
+        result = cursor.fetchall()
+        return result
 
     def addProductOrderMapping():
         product_order_mapping = []
         for i in range(50):
-            order_id = random.choice(Orders.getOrderData())
+            order_id = random.choice(Orders.getOrderIds())
             quantity = random.uniform(1, 5)
-            product_id=random.choice(Product.getProductData())
+            product_id=random.choice(Product.getProductIds())
             product_order_mapping.append((order_id, product_id, quantity))
         query = 'INSERT INTO product_order_mapping(order_id, product_id, quantity) VALUES (%s, %s, %s)'
         cursor.executemany(query, product_order_mapping)
         connection.commit()
+
+    def getProductOrderMapping():
+        query = 'SELECT * FROM product_order_mapping'
+        cursor.execute(query)
+        result = cursor.fetchall()
+        return result
+
+class Dashboard():
+    def __init__(self, customer_data, product_data, order_data, product_order_mapping):
+        self.customer_data = customer_data
+        self.product_data = product_data
+        self.order_data = order_data
+        self.product_order_mapping = product_order_mapping
+
+    def show_dashboard(self):
+        st.subheader('Customer Data')
+        st.write(self.customer_data)
+
+        st.subheader('Product Data')
+        st.write(self.product_data)
+
+        st.subheader('Order Data')
+        st.write(self.order_data)
+
+        st.subheader('Product Order Mapping')
+        st.write(self.product_order_mapping)
 
 
 #Establish connection to mysql server on local machine/localhost
@@ -142,7 +186,7 @@ elif option == 'Create 50 Orders':
     if st.button('Generate Orders'):
         Orders.addOrderData()
         Orders.addProductOrderMapping()
-        st.success('50 orders added!')
+        st.success('50 orders added!') 
 elif option == 'Show Dashboard':
     st.info('Dashboard feature coming soon!')
 
