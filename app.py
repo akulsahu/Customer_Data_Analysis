@@ -6,10 +6,12 @@ Created on Tue Aug 19 21:16:32 2025
 @author: harsh
 """
 
-#Course end project - Analyzing customer orders using python
+
+# Course end project - Analyzing customer orders using python
 import mysql.connector
 from faker import Faker
 import random
+import streamlit as st
 
 faker=Faker()
 
@@ -118,28 +120,31 @@ connection = mysql.connector.connect(
 #Read and store the data 
 cursor=connection.cursor()
 
-userChoice=0
-print('Welcome to the Customer Analysis mini-project !')
-while userChoice !=4:
-    print('Press 1: To create random data of 50 customers')
-    print('Press 2: To create random data of 50 products')
-    print('Press 3: To create random data of 50 orders')
-    print('Press 4: To show dashboard')
-    print('Press 5: To exit')
-    userChoice = int(input())
-    if userChoice==1:
+
+# Streamlit UI
+st.title('Customer Analysis Mini-Project')
+st.write('Interactively generate and analyze customer, product, and order data.')
+
+option = st.selectbox(
+    'Choose an action:',
+    ('Select...', 'Create 50 Customers', 'Create 50 Products', 'Create 50 Orders', 'Show Dashboard')
+)
+
+if option == 'Create 50 Customers':
+    if st.button('Generate Customers'):
         Customer.addCustomerData()
-    elif userChoice==2:
+        st.success('50 customers added!')
+elif option == 'Create 50 Products':
+    if st.button('Generate Products'):
         Product.addProductData()
-    elif userChoice==3:
+        st.success('50 products added!')
+elif option == 'Create 50 Orders':
+    if st.button('Generate Orders'):
         Orders.addOrderData()
         Orders.addProductOrderMapping()
-    elif userChoice==4:
-        pass
-    elif userChoice==5:
-        print('Thanks for trying the project !!')
-    else:
-        print('Please try a valid input')
+        st.success('50 orders added!')
+elif option == 'Show Dashboard':
+    st.info('Dashboard feature coming soon!')
 
 #close the cursor object
 cursor.close()
