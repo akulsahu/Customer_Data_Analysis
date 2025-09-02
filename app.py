@@ -12,6 +12,9 @@ import mysql.connector
 from faker import Faker
 import random
 import streamlit as st
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 faker=Faker()
 
@@ -140,18 +143,32 @@ class Dashboard():
         self.order_data = order_data
         self.product_order_mapping = product_order_mapping
 
-    def show_dashboard(self):
-        st.subheader('Customer Data')
-        st.write(self.customer_data)
+    def totalOrdersByMonth(self):
+        df = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date'])
+        df['order_date'] = pd.to_datetime(df['order_date'])
+        df['month'] = df['order_date'].dt.month
+        orderByMonth=df.groupby(df['month']).size().reset_index(name='total_orders')
+        st.title('Total Orders by Month')
+        sns.set_style("darkgrid")
+        sns.set_context("talk")
+        fig, ax = plt.subplots(figsize=(12, 6))
+        sns.lineplot(data=orderByMonth, x='month', y='total_orders', marker='o', ax=ax)
+        ax.set_xlabel('Month')
+        ax.set_ylabel('Number of Orders')
+        ax.set_title('Number of Orders by Month')
+        ax.grid(True)
+        st.pyplot(fig)
 
-        st.subheader('Product Data')
-        st.write(self.product_data)
+    def topSpendingCustomers(self):
+        df1 = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date'])
+        df1['order_amount'] = pd.to_numeric(df1['order_amount'], errors='coerce')
+        top_customers = df1.groupby('customer_id')['order_amount'].sum().reset_index(name='Total_order_amount')
+        top_customers = top_customers.sort_values(by='Total_order_amount', ascending=False).head(10)
+        customer_df = pd.DataFrame(self.customer_data, columns=['id', 'first_name', 'last_name', 'full_name', 'phone_number', 'email'])
+        customer_df.drop(columns=['first_name', 'last_name', 'phone_number', 'email'], inplace=True)
+        top_customers = pd.merge()
 
-        st.subheader('Order Data')
-        st.write(self.order_data)
 
-        st.subheader('Product Order Mapping')
-        st.write(self.product_order_mapping)
 
 
 #Establish connection to mysql server on local machine/localhost
@@ -188,7 +205,14 @@ elif option == 'Create 50 Orders':
         Orders.addProductOrderMapping()
         st.success('50 orders added!') 
 elif option == 'Show Dashboard':
-    st.info('Dashboard feature coming soon!')
+    if st.button('Load Dashboard'):
+        customer_data = Customer.getCustomerData()
+        product_data = Product.getProductData()
+        order_data = Orders.getOrderData()
+        product_order_mapping = Orders.getProductOrderMapping()
+        
+        dashboard = Dashboard(customer_data, product_data, order_data, product_order_mapping)
+        dashboard.totalOrdersByMonth()
 
 #close the cursor object
 cursor.close()
