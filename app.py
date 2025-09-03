@@ -15,6 +15,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 faker=Faker()
 
@@ -151,7 +152,7 @@ class Dashboard():
         st.title('Total Orders by Month')
         sns.set_style("darkgrid")
         sns.set_context("talk")
-        fig, ax = plt.subplots(figsize=(12, 6))
+        fig, ax = plt.subplots(figsize=(16, 8))
         sns.lineplot(data=orderByMonth, x='month', y='total_orders', marker='o', ax=ax)
         ax.set_xlabel('Month')
         ax.set_ylabel('Number of Orders')
@@ -161,15 +162,68 @@ class Dashboard():
 
     def topSpendingCustomers(self):
         df1 = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date'])
-        df1['order_amount'] = pd.to_numeric(df1['order_amount'], errors='coerce')
+        df1['order_amount'] = pd.to_numeric(df1['order_amount'], errors='coerce')              #Replace values which are not int/floats into NaN
         top_customers = df1.groupby('customer_id')['order_amount'].sum().reset_index(name='Total_order_amount')
         top_customers = top_customers.sort_values(by='Total_order_amount', ascending=False).head(10)
         customer_df = pd.DataFrame(self.customer_data, columns=['id', 'first_name', 'last_name', 'full_name', 'phone_number', 'email'])
         customer_df.drop(columns=['first_name', 'last_name', 'phone_number', 'email'], inplace=True)
-        top_customers = pd.merge()
+        top_customers = pd.merge(customer_df, top_customers, left_on='id', right_on='customer_id', how='inner')
+        top_customers.drop(columns=['id', 'customer_id'], inplace=True)
+        top_customers['Total_order_amount'] = np.ceil(top_customers['Total_order_amount']).astype(int)  # Round up to nearest integer
+        top_customers = top_customers.sort_values(by='Total_order_amount', ascending=False)
+        st.title('Top Spending Customers')
+        fig, ax = plt.subplots(figsize=(16, 8))
+        sns.barplot(data=top_customers, x='full_name', y='Total_order_amount', palette='viridis', ax=ax)
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+        ax.set_xlabel('Customer Name')
+        ax.set_ylabel('Total Order Amount')
+        ax.set_title('Top Spending Customers')
+        st.pyplot(fig)
 
+    def topSellingProducts(self):
+        df2 = pd.DataFrame(self.product_order_mapping, columns=['id', 'order_id', 'product_id', 'quantity'])    
+        df2['quantity'] = pd.to_numeric(df2['quantity'], errors='coerce')              #Replace values which are not int/floats into NaN
+        top_products = df2.groupby('product_id')['quantity'].sum().reset_index(name='Total_quantity_sold')
+        top_products = top_products.sort_values(by='Total_quantity_sold', ascending=False).head(10)
+        product_df = pd.DataFrame(self.product_data, columns=['id', 'product_name', 'display_name', 'category'])
+        top_products = pd.merge(product_df, top_products, left_on='id', right_on='product_id', how='inner')
+        top_products.drop(columns=['id', 'product_id', 'product_name', 'category'], inplace=True)
+        top_products['Total_quantity_sold'] = np.ceil(top_products['Total_quantity_sold']).astype(int)  # Round up to nearest integer
+        top_products = top_products.sort_values(by='Total_quantity_sold', ascending=False)
+        st.title('Top Selling Products')
+        fig, ax = plt.subplots(figsize=(16, 8))
+        sns.barplot(data=top_products, x='display_name', y='Total_quantity_sold', palette='viridis', ax=ax)
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha='right')
+        ax.set_xlabel('Product Name')
+        ax.set_ylabel('Total Quantity Sold')
+        ax.set_title('Top Selling Products')
+        st.pyplot(fig)
 
+    def topSellingProductCategories(self):
+        df3 = pd.DataFrame(self.product_order_mapping, columns=['id', 'order_id', 'product_id', 'quantity'])
+        df4 = pd.DataFrame(self.product_data, columns=['id', 'product_name', 'display_name', 'category'])
+        df3 = pd.merge(df3, df4, left_on='product_id', right_on='id', how='inner')
+        top_categories = df3.groupby('category')['quantity'].sum().reset_index(name='Total_quantity_sold')
+        top_categories = top_categories.sort_values(by='Total_quantity_sold', ascending=False).head(10)
+        top_categories['Total_quantity_sold'] = np.ceil(top_categories['Total_quantity_sold']).astype(int)  # Round up to nearest integer
+        st.title('Top Selling Product Categories')
+        fig, ax = plt.subplots(figsize=(14, 7))
+        plt.pie(top_categories['Total_quantity_sold'], labels=top_categories['category'], autopct='%1.1f%%', startangle=140)
+        st.pyplot(fig)
 
+    def monthByMonthRevenue(self):
+        df5 = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date'])
+        df5['order_amount'] = pd.to_numeric(df5['order_amount'], errors='coerce')
+        df5['order_date'] = pd.to_datetime(df5['order_date'], errors='coerce')
+        df5['month'] = df5['order_date'].dt.month
+        df5 = df5.groupby('month')['order_amount'].sum().reset_index(name='Total_revenue')
+        fig, ax = plt.subplots(figsize=(16, 8))
+        sns.lineplot(data=df5, x='month', y='Total_revenue', marker='o', ax=ax)
+        ax.set_xlabel('Month')
+        ax.set_ylabel('Total Revenue')
+        ax.set_title('Month by Month Revenue')
+        st.title('Month by Month Revenue')
+        st.pyplot(fig)
 
 #Establish connection to mysql server on local machine/localhost
 connection = mysql.connector.connect(
@@ -185,6 +239,7 @@ cursor=connection.cursor()
 # Streamlit UI
 st.title('Customer Analysis Mini-Project')
 st.write('Interactively generate and analyze customer, product, and order data.')
+col1, col2 = st.columns(2)
 
 option = st.selectbox(
     'Choose an action:',
@@ -213,6 +268,11 @@ elif option == 'Show Dashboard':
         
         dashboard = Dashboard(customer_data, product_data, order_data, product_order_mapping)
         dashboard.totalOrdersByMonth()
+        dashboard.monthByMonthRevenue()
+        dashboard.topSpendingCustomers()
+        dashboard.topSellingProducts()
+        dashboard.topSellingProductCategories()
+         
 
 #close the cursor object
 cursor.close()
