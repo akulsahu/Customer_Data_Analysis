@@ -16,6 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from datetime import date
 
 faker=Faker()
 
@@ -89,19 +90,15 @@ class Product():
         return result
 
 class Orders():
-    def __init__(self, order_id, customer_id, product_id, quantity, order_date):
-        self.order_id = order_id
-        self.customer_id = customer_id
-        self.product_id = product_id
-        self.quantity = quantity
-        self.order_date = order_date
-
-    def addOrderData():
+    @staticmethod
+    def addOrderData(year):
         orders = []
         for i in range(50):
             customer_id = random.choice(Customer.getCustomerIds())
             order_amount = random.uniform(25, 10000)
-            order_date = faker.date_between(start_date='-1y', end_date='today')
+            start_date=date(int(year), 1, 1)
+            end_date=date(int(year), 12, 31)
+            order_date = faker.date_between(start_date=start_date, end_date=end_date)
             orders.append((customer_id, order_amount, order_date))
         query = 'INSERT INTO order_details(customer_id, order_amount, order_date) VALUES (%s, %s, %s)'
         cursor.executemany(query, orders)
@@ -125,7 +122,7 @@ class Orders():
         for i in range(50):
             order_id = random.choice(Orders.getOrderIds())
             quantity = random.uniform(1, 5)
-            product_id=random.choice(Product.getProductIds())
+            product_id = random.choice(Product.getProductIds())
             product_order_mapping.append((order_id, product_id, quantity))
         query = 'INSERT INTO product_order_mapping(order_id, product_id, quantity) VALUES (%s, %s, %s)'
         cursor.executemany(query, product_order_mapping)
@@ -239,7 +236,6 @@ cursor=connection.cursor()
 # Streamlit UI
 st.title('Customer Analysis Mini-Project')
 st.write('Interactively generate and analyze customer, product, and order data.')
-col1, col2 = st.columns(2)
 
 option = st.selectbox(
     'Choose an action:',
@@ -255,10 +251,14 @@ elif option == 'Create 50 Products':
         Product.addProductData()
         st.success('50 products added!')
 elif option == 'Create 50 Orders':
-    if st.button('Generate Orders'):
-        Orders.addOrderData()
-        Orders.addProductOrderMapping()
-        st.success('50 orders added!') 
+    year = st.text_input('Enter a year to generate data for:')
+    if not (year.isnumeric() and len(year)==4):
+        st.error('Please enter a valid year (e.g., 2023).')
+    else:
+        if st.button('Generate Orders'):
+            Orders.addOrderData(year)
+            Orders.addProductOrderMapping()
+            st.success(f'50 orders added for year {year}!')
 elif option == 'Show Dashboard':
     if st.button('Load Dashboard'):
         customer_data = Customer.getCustomerData()
