@@ -16,6 +16,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from datetime import date
 
 faker=Faker()
 
@@ -89,19 +90,15 @@ class Product():
         return result
 
 class Orders():
-    def __init__(self, order_id, customer_id, product_id, quantity, order_date):
-        self.order_id = order_id
-        self.customer_id = customer_id
-        self.product_id = product_id
-        self.quantity = quantity
-        self.order_date = order_date
-
-    def addOrderData():
+    @staticmethod
+    def addOrderData(year):
         orders = []
         for i in range(50):
             customer_id = random.choice(Customer.getCustomerIds())
             order_amount = random.uniform(25, 10000)
-            order_date = faker.date_between(start_date='-1y', end_date='today')
+            start_date=date(int(year), 1, 1)
+            end_date=date(int(year), 12, 31)
+            order_date = faker.date_between(start_date=start_date, end_date=end_date)
             orders.append((customer_id, order_amount, order_date))
         query = 'INSERT INTO order_details(customer_id, order_amount, order_date) VALUES (%s, %s, %s)'
         cursor.executemany(query, orders)
@@ -125,7 +122,7 @@ class Orders():
         for i in range(50):
             order_id = random.choice(Orders.getOrderIds())
             quantity = random.uniform(1, 5)
-            product_id=random.choice(Product.getProductIds())
+            product_id = random.choice(Product.getProductIds())
             product_order_mapping.append((order_id, product_id, quantity))
         query = 'INSERT INTO product_order_mapping(order_id, product_id, quantity) VALUES (%s, %s, %s)'
         cursor.executemany(query, product_order_mapping)
@@ -138,16 +135,19 @@ class Orders():
         return result
 
 class Dashboard():
-    def __init__(self, customer_data, product_data, order_data, product_order_mapping):
+    def __init__(self, customer_data, product_data, order_data, product_order_mapping, filterValue):
         self.customer_data = customer_data
         self.product_data = product_data
         self.order_data = order_data
         self.product_order_mapping = product_order_mapping
+        self.filterValue = filterValue
 
     def totalOrdersByMonth(self):
         df = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date'])
         df['order_date'] = pd.to_datetime(df['order_date'])
         df['month'] = df['order_date'].dt.month
+        df['year'] = df['order_date'].dt.year
+        df = df[df['year'] == self.filterValue]
         orderByMonth=df.groupby(df['month']).size().reset_index(name='total_orders')
         st.title('Total Orders by Month')
         sns.set_style("darkgrid")
@@ -163,6 +163,9 @@ class Dashboard():
     def topSpendingCustomers(self):
         df1 = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date'])
         df1['order_amount'] = pd.to_numeric(df1['order_amount'], errors='coerce')              #Replace values which are not int/floats into NaN
+        df1['order_date'] = pd.to_datetime(df1['order_date'], errors='coerce')
+        df1['year'] = df1['order_date'].dt.year
+        df1 = df1[df1['year']==self.filterValue]
         top_customers = df1.groupby('customer_id')['order_amount'].sum().reset_index(name='Total_order_amount')
         top_customers = top_customers.sort_values(by='Total_order_amount', ascending=False).head(10)
         customer_df = pd.DataFrame(self.customer_data, columns=['id', 'first_name', 'last_name', 'full_name', 'phone_number', 'email'])
@@ -181,8 +184,13 @@ class Dashboard():
         st.pyplot(fig)
 
     def topSellingProducts(self):
+        dfOrders = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date']) 
+        dfOrders['order_date'] = pd.to_datetime(dfOrders['order_date'], errors='coerce')
+        dfOrders['year'] = dfOrders['order_date'].dt.year
+        dfOrders = dfOrders[dfOrders['year'] == self.filterValue]
         df2 = pd.DataFrame(self.product_order_mapping, columns=['id', 'order_id', 'product_id', 'quantity'])    
         df2['quantity'] = pd.to_numeric(df2['quantity'], errors='coerce')              #Replace values which are not int/floats into NaN
+        df2 = df2[df2['order_id'].isin(dfOrders['order_id'])]
         top_products = df2.groupby('product_id')['quantity'].sum().reset_index(name='Total_quantity_sold')
         top_products = top_products.sort_values(by='Total_quantity_sold', ascending=False).head(10)
         product_df = pd.DataFrame(self.product_data, columns=['id', 'product_name', 'display_name', 'category'])
@@ -200,9 +208,14 @@ class Dashboard():
         st.pyplot(fig)
 
     def topSellingProductCategories(self):
+        dfOrders = pd.DataFrame(self.order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date']) 
+        dfOrders['order_date'] = pd.to_datetime(dfOrders['order_date'], errors='coerce')
+        dfOrders['year'] = dfOrders['order_date'].dt.year
+        dfOrders = dfOrders[dfOrders['year'] == self.filterValue]
         df3 = pd.DataFrame(self.product_order_mapping, columns=['id', 'order_id', 'product_id', 'quantity'])
         df4 = pd.DataFrame(self.product_data, columns=['id', 'product_name', 'display_name', 'category'])
         df3 = pd.merge(df3, df4, left_on='product_id', right_on='id', how='inner')
+        df3 = df3[df3['order_id'].isin(dfOrders['order_id'])]
         top_categories = df3.groupby('category')['quantity'].sum().reset_index(name='Total_quantity_sold')
         top_categories = top_categories.sort_values(by='Total_quantity_sold', ascending=False).head(10)
         top_categories['Total_quantity_sold'] = np.ceil(top_categories['Total_quantity_sold']).astype(int)  # Round up to nearest integer
@@ -216,6 +229,8 @@ class Dashboard():
         df5['order_amount'] = pd.to_numeric(df5['order_amount'], errors='coerce')
         df5['order_date'] = pd.to_datetime(df5['order_date'], errors='coerce')
         df5['month'] = df5['order_date'].dt.month
+        df5['year'] = df5['order_date'].dt.year
+        df5 = df5[df5['year'] == self.filterValue]
         df5 = df5.groupby('month')['order_amount'].sum().reset_index(name='Total_revenue')
         fig, ax = plt.subplots(figsize=(16, 8))
         sns.lineplot(data=df5, x='month', y='Total_revenue', marker='o', ax=ax)
@@ -239,7 +254,6 @@ cursor=connection.cursor()
 # Streamlit UI
 st.title('Customer Analysis Mini-Project')
 st.write('Interactively generate and analyze customer, product, and order data.')
-col1, col2 = st.columns(2)
 
 option = st.selectbox(
     'Choose an action:',
@@ -255,18 +269,28 @@ elif option == 'Create 50 Products':
         Product.addProductData()
         st.success('50 products added!')
 elif option == 'Create 50 Orders':
-    if st.button('Generate Orders'):
-        Orders.addOrderData()
-        Orders.addProductOrderMapping()
-        st.success('50 orders added!') 
+    year = st.text_input('Enter a year to generate data for:')
+    if not (year.isnumeric() and len(year)==4):
+        st.error('Please enter a valid year (e.g., 2023).')
+    else:
+        if st.button('Generate Orders'):
+            Orders.addOrderData(year)
+            Orders.addProductOrderMapping()
+            st.success(f'50 orders added for year {year}!')
 elif option == 'Show Dashboard':
+    customer_data = Customer.getCustomerData()
+    product_data = Product.getProductData()
+    order_data = Orders.getOrderData()
+    product_order_mapping = Orders.getProductOrderMapping()
+    filterYearList = pd.DataFrame(order_data, columns=['order_id', 'customer_id', 'order_amount', 'order_date'])
+    filterYearList['order_date'] = pd.to_datetime(filterYearList['order_date'], errors='coerce')
+    filterYearList['order_date'] = filterYearList['order_date'].dt.year
+    filterYearList = filterYearList['order_date'].unique()           #this converts the dataframe to a numpy series
+    filterYearList = np.sort(filterYearList)
+    filterValue = st.selectbox('View result for:', filterYearList[::-1], index=0)
+    st.write('Please click **Load Dashboard** after changing the year to view the results.')
     if st.button('Load Dashboard'):
-        customer_data = Customer.getCustomerData()
-        product_data = Product.getProductData()
-        order_data = Orders.getOrderData()
-        product_order_mapping = Orders.getProductOrderMapping()
-        
-        dashboard = Dashboard(customer_data, product_data, order_data, product_order_mapping)
+        dashboard = Dashboard(customer_data, product_data, order_data, product_order_mapping, filterValue)
         dashboard.totalOrdersByMonth()
         dashboard.monthByMonthRevenue()
         dashboard.topSpendingCustomers()
